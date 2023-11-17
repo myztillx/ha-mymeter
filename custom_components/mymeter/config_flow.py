@@ -6,13 +6,8 @@ from homeassistant import config_entries
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.helpers import selector
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
+from mymeter import MyMeter, InvalidAuth, TokenErrorException
 
-from .api import (
-    IntegrationBlueprintApiClient,
-    IntegrationBlueprintApiClientAuthenticationError,
-    IntegrationBlueprintApiClientCommunicationError,
-    IntegrationBlueprintApiClientError,
-)
 from .const import DOMAIN, LOGGER
 
 
@@ -33,15 +28,12 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                     username=user_input[CONF_USERNAME],
                     password=user_input[CONF_PASSWORD],
                 )
-            except IntegrationBlueprintApiClientAuthenticationError as exception:
+            except InvalidAuth as exception:
                 LOGGER.warning(exception)
                 _errors["base"] = "auth"
-            except IntegrationBlueprintApiClientCommunicationError as exception:
+            except TokenErrorException as exception:
                 LOGGER.error(exception)
-                _errors["base"] = "connection"
-            except IntegrationBlueprintApiClientError as exception:
-                LOGGER.exception(exception)
-                _errors["base"] = "unknown"
+                _errors["base"] = "token_error"
             else:
                 return self.async_create_entry(
                     title=user_input[CONF_USERNAME],
@@ -72,9 +64,9 @@ class BlueprintFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def _test_credentials(self, username: str, password: str) -> None:
         """Validate credentials."""
-        client = IntegrationBlueprintApiClient(
+        client = MyMeter(
             username=username,
             password=password,
             session=async_create_clientsession(self.hass),
         )
-        await client.async_get_data()
+        await client.async_login()
